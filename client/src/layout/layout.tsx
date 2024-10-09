@@ -1,3 +1,5 @@
+import { useCallback } from "react";
+import { memo } from "react";
 import React, { FC, ReactElement, useContext, useEffect, useMemo } from 'react';
 import Header from './header';
 import Sidebar from './sidebar';
@@ -14,67 +16,53 @@ import { TodoItem, TodoList } from '../models';
 import { headerStackStyles, mainStackStyles, rootStackStyles, sidebarStackStyles } from '../ux/styles';
 import TodoItemDetailPane from '../components/todoItemDetailPane';
 import { bindActionCreators } from '../actions/actionCreators';
+const Layout: FC = memo((): ReactElement => {
+  const appContext = useContext<AppContext>(TodoContext);
+  const actions = useMemo(() => ({
+    lists: ((bindActionCreators(listActions, appContext.dispatch) as unknown) as ListActions),
+    items: ((bindActionCreators(itemActions, appContext.dispatch) as unknown) as ItemActions)
+  }), [appContext.dispatch]);
 
-const Layout: FC = (): ReactElement => {
-    const appContext = useContext<AppContext>(TodoContext)
-    const actions = useMemo(() => ({
-        lists: bindActionCreators(listActions, appContext.dispatch) as unknown as ListActions,
-        items: bindActionCreators(itemActions, appContext.dispatch) as unknown as ItemActions,
-    }), [appContext.dispatch]);
-
-    // Load initial lists
-    useEffect(() => {
-        if (!appContext.state.lists) {
-            actions.lists.list();
-        }
-    }, [actions.lists, appContext.state.lists]);
-
-    const onListCreated = async (list: TodoList) => {
-        const newList = await actions.lists.save(list);
-        appContext.updateListId(`${newList.id}`);
+  // Load initial lists
+  useEffect(() => {
+    if (!appContext.state.lists) {
+      actions.lists.list();
     }
-
-    const onItemEdited = (item: TodoItem) => {
-        actions.items.save(item.listId, item);
-        actions.items.select(undefined);
-        appContext.updateListId(`${item.listId}`)
-        appContext.updateItemId("");
+  }, [actions.lists, appContext.state.lists]);
+  const onListCreated = useCallback(async (list: TodoList) => {
+    const newList = await actions.lists.save(list);
+    appContext.updateListId(`${newList.id}`);
+  }, []);
+  const onItemEdited = useCallback((item: TodoItem) => {
+    actions.items.save(item.listId, item);
+    actions.items.select(undefined);
+    appContext.updateListId(`${item.listId}`);
+    appContext.updateItemId("");
+  }, []);
+  const onItemEditCancel = useCallback(() => {
+    if (appContext.state.selectedList) {
+      actions.items.select(undefined);
+      appContext.updateListId(`${appContext.state.selectedList.id}`);
+      appContext.updateItemId("");
     }
-
-    const onItemEditCancel = () => {
-        if (appContext.state.selectedList) {
-            actions.items.select(undefined);
-            appContext.updateListId(`${appContext.state.selectedList.id}`);
-            appContext.updateItemId("");
-        }
-    }
-
-    return (
-        <Stack styles={rootStackStyles}>
+  }, []);
+  return <Stack styles={rootStackStyles}>
             <Stack.Item styles={headerStackStyles}>
                 <Header></Header>
             </Stack.Item>
             <Stack horizontal grow={1}>
                 <Stack.Item styles={sidebarStackStyles}>
-                    <Sidebar
-                        selectedList={appContext.state.selectedList}
-                        lists={appContext.state.lists}
-                        onListCreate={onListCreated} />
+                    <Sidebar selectedList={appContext.state.selectedList} lists={appContext.state.lists} onListCreate={onListCreated} />
                 </Stack.Item>
                 <Stack.Item grow={1} styles={mainStackStyles}>
                     <Routes>
-                        <Route path="/" element={ <HomePage /> } />
+                        <Route path="/" element={<HomePage />} />
                     </Routes>
                 </Stack.Item>
                 <Stack.Item styles={sidebarStackStyles}>
-                    <TodoItemDetailPane
-                        item={appContext.state.selectedItem}
-                        onEdit={onItemEdited}
-                        onCancel={onItemEditCancel} />
+                    <TodoItemDetailPane item={appContext.state.selectedItem} onEdit={onItemEdited} onCancel={onItemEditCancel} />
                 </Stack.Item>
             </Stack>
-        </Stack>
-    );
-}
-
+        </Stack>;
+});
 export default Layout;
